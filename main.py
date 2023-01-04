@@ -1,7 +1,8 @@
-from fastapi import FastAPI
-from typing import Optional
+from fastapi import FastAPI, HTTPException
+from typing import Optional, List
 from pydantic import BaseModel
 from pymongo import MongoClient
+from pymongo.errors import ServerSelectionTimeoutError
 
 
 app = FastAPI()
@@ -14,11 +15,23 @@ class User(BaseModel):
     password: str # on production ofc hashed
 
 
-@app.get("/", tags=["category1"])
-def read_root():
-    """This endpoint is for test only"""
-    return {"Hello": "from root"}
+class UserSafe(BaseModel):
+    FirstName: str
+    LastName: str
+    email: str
 
-@app.put("/items/{item_id}")
-def update_item(item_id: int, item: Item):
-    return {"item name": item.name, "item id": item.id}
+
+@app.get("/users", response_model=List[UserSafe], tags=["users"])
+def get_all_users():
+    """Get all users from db"""
+    client = MongoClient(serverSelectionTimeoutMS=5000)
+    users_collection = client['data']['users']
+    try:
+        client.server_info()
+    except ServerSelectionTimeoutError as e:
+        raise HTTPException(status_code=503, detail="Problem with connecting to Database")
+    res = users_collection.find({})
+    res2 = list(res)
+    print(list(res))
+    return res2
+
